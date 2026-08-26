@@ -1,0 +1,945 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Arcana: Tarot Data System</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Inter:wght@300;400;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #090a0f;
+        --panel: #161925;
+        --gold: #d4af37;
+        --text: #e2e8f0;
+        --border: rgba(212, 175, 55, 0.3);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: var(--bg);
+        color: var(--text);
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      h1,
+      h2,
+      h3 {
+        font-family: "Cinzel", serif;
+        color: var(--gold);
+        font-weight: normal;
+      }
+      header {
+        text-align: center;
+        margin-top: 30px;
+        width: 100%;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 20px;
+      }
+      header p {
+        color: #888;
+        font-size: 14px;
+        margin-top: 5px;
+      }
+      .nav {
+        display: flex;
+        gap: 15px;
+        margin: 20px 0;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      button {
+        background: transparent;
+        border: 1px solid var(--gold);
+        color: var(--gold);
+        padding: 10px 20px;
+        font-family: "Cinzel", serif;
+        font-size: 16px;
+        cursor: pointer;
+        border-radius: 4px;
+        transition: all 0.3s;
+      }
+      button:hover {
+        background: var(--gold);
+        color: var(--bg);
+      }
+      .container {
+        width: 90%;
+        max-width: 1000px;
+        display: none;
+      }
+      .active {
+        display: block;
+      }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 25px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+      }
+      .cards-row {
+        display: flex;
+        gap: 20px;
+        margin-top: 20px;
+        justify-content: center;
+        min-height: 380px;
+        flex-wrap: wrap;
+      }
+      .card-container {
+        perspective: 1000px;
+        width: 220px;
+        height: 380px;
+      }
+      .card-inner {
+        width: 100%;
+        height: 100%;
+        transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        transform-style: preserve-3d;
+        position: relative;
+      }
+      .card-container.flipped .card-inner {
+        transform: rotateY(180deg);
+      }
+      .card-front,
+      .card-back {
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        backface-visibility: hidden;
+        border-radius: 10px;
+        border: 2px solid var(--gold);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+      .card-front {
+        background: repeating-linear-gradient(
+          45deg,
+          #111 0,
+          #111 10px,
+          #1a1a1a 10px,
+          #1a1a1a 20px
+        );
+        cursor: pointer;
+      }
+      .card-front::after {
+        content: "ARCANA";
+        font-family: "Cinzel", serif;
+        color: var(--gold);
+        font-size: 24px;
+        border: 1px solid var(--gold);
+        padding: 10px;
+        background: rgba(0, 0, 0, 0.8);
+      }
+      .click-hint {
+        color: var(--gold);
+        font-size: 11px;
+        margin-top: 20px;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        animation: pulse 1.5s infinite;
+        position: absolute;
+        bottom: 30px;
+      }
+      @keyframes pulse {
+        0% {
+          opacity: 0.4;
+        }
+        50% {
+          opacity: 1;
+        }
+        100% {
+          opacity: 0.4;
+        }
+      }
+      .card-back {
+        background: #000;
+        transform: rotateY(180deg);
+        padding: 12px;
+        text-align: center;
+        justify-content: flex-start;
+      }
+      .card-img {
+        width: 100%;
+        height: 140px;
+        object-fit: cover;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 10px;
+        border-radius: 4px;
+      }
+      .card-title {
+        font-family: "Cinzel", serif;
+        font-size: 15px;
+        font-weight: bold;
+        margin-bottom: 5px;
+        color: #fff;
+      }
+      .card-orient {
+        font-size: 12px;
+        color: var(--gold);
+        margin-bottom: 5px;
+      }
+      .card-mean {
+        font-size: 11px;
+        color: #aaa;
+        line-height: 1.4;
+        overflow-y: auto;
+        flex-grow: 1;
+        padding: 0 5px;
+      }
+      .inspect-btn {
+        margin-top: 5px;
+        padding: 4px 8px;
+        font-size: 10px;
+        font-family: "Inter";
+        width: 100%;
+        border: 1px dashed var(--gold);
+        border-radius: 4px;
+        cursor: pointer;
+        background: transparent;
+        color: var(--gold);
+        transition: 0.3s;
+      }
+      .inspect-btn:hover {
+        background: var(--gold);
+        color: #000;
+      }
+      select,
+      input[type="text"] {
+        background: #000;
+        border: 1px solid var(--gold);
+        color: white;
+        padding: 10px;
+        font-family: "Inter";
+        font-size: 14px;
+        margin-right: 10px;
+        border-radius: 4px;
+        outline: none;
+      }
+      .log-box {
+        background: #000;
+        border: 1px solid #333;
+        padding: 15px;
+        font-family: monospace;
+        color: #888;
+        height: 250px;
+        overflow-y: auto;
+        border-radius: 4px;
+      }
+      .log-item {
+        border-bottom: 1px solid #222;
+        padding: 8px 0;
+      }
+      .badge {
+        background: rgba(212, 175, 55, 0.1);
+        border: 1px solid var(--gold);
+        color: var(--gold);
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        margin-bottom: 10px;
+        display: inline-block;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Arcana: Tarot Knowledge System</h1>
+      <p>Full 78-Card Deck & 3D Interactive Visualization</p>
+    </header>
+    <div class="nav">
+      <button onclick="switchTab('tab-reading')">
+        1. Reading (List & Stack)
+      </button>
+      <button onclick="switchTab('tab-search')">
+        2. Database (Hash & Graph)
+      </button>
+      <button onclick="switchTab('tab-queue')">3. Requests (Queue)</button>
+    </div>
+    <div id="tab-reading" class="container active">
+      <div class="panel">
+        <h2>Perform Reading</h2>
+        <div class="badge">List Random Access</div>
+        <div class="badge">Interactive 3D Reveal</div>
+        <p style="color: #aaa; font-size: 14px; margin-bottom: 20px">
+          Deals 3 cards from the deck. Click each card sequentially to reveal
+          its meaning.
+        </p>
+        <button onclick="startReading('General Reading')">Start Reading</button>
+        <h3
+          id="current-question-title"
+          style="
+            text-align: center;
+            color: #fff;
+            display: none;
+            width: 100%;
+            margin-top: 20px;
+          "
+        ></h3>
+        <div id="reading-display" class="cards-row">
+          <div style="color: #555; margin-top: 150px">
+            Click 'Start Reading' to deal cards.
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>History Stack</h2>
+        <div class="badge">Stack (LIFO)</div>
+        <button
+          onclick="undoDraw()"
+          style="float: right; border-color: #666; color: #888"
+        >
+          Pop / Undo
+        </button>
+        <p style="color: #aaa; font-size: 14px; margin-bottom: 20px">
+          Stores reading sessions and questions. Newest at the top.
+        </p>
+        <div id="stack-log" class="log-box">Stack is currently empty.</div>
+      </div>
+    </div>
+    <div id="tab-search" class="container">
+      <div class="panel">
+        <h2>Card Database Explorer</h2>
+        <div class="badge">Hash Table O(1)</div>
+        <div class="badge">Graph BFS Traversal</div>
+        <br /><br />
+        <select id="card-select"></select>
+        <button onclick="searchCard()">Search Database</button>
+        <div
+          id="search-result"
+          style="
+            display: none;
+            margin-top: 25px;
+            border-left: 3px solid var(--gold);
+            padding-left: 20px;
+          "
+        >
+          <h3 id="res-name" style="margin: 0 0 10px 0">Card Name</h3>
+          <img
+            id="res-img"
+            style="
+              width: 120px;
+              border-radius: 4px;
+              margin-bottom: 10px;
+              border: 1px solid var(--gold);
+            "
+            src=""
+          />
+          <p>
+            <strong>Upright Meaning:</strong>
+            <span id="res-up" style="color: #aaa">...</span>
+          </p>
+          <p>
+            <strong>Reversed Meaning:</strong>
+            <span id="res-rev" style="color: #aaa">...</span>
+          </p>
+          <div
+            style="
+              margin-top: 20px;
+              padding: 15px;
+              background: rgba(0, 0, 0, 0.5);
+              border-radius: 6px;
+            "
+          >
+            <strong style="color: var(--gold)"
+              >Graph Algorithm: Connected Nodes (BFS)</strong
+            ><br />
+            <span
+              id="res-graph"
+              style="
+                color: #fff;
+                font-size: 14px;
+                display: block;
+                margin-top: 8px;
+              "
+            ></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="tab-queue" class="container">
+      <div class="panel">
+        <h2>Reading Request Queue</h2>
+        <div class="badge">Queue (FIFO)</div>
+        <div class="badge">Auto-Draw Link</div>
+        <p style="color: #aaa; font-size: 14px; margin-bottom: 20px">
+          Ask specific questions. Process them sequentially in a first-in,
+          first-out manner.
+        </p>
+        <input
+          type="text"
+          id="req-type"
+          placeholder="Ask anything (e.g., Will I pass CS225?)"
+          style="width: 300px"
+        />
+        <button onclick="enqueueReq()">Enqueue (Add)</button>
+        <button
+          onclick="processAndDraw()"
+          style="
+            background: var(--gold);
+            color: var(--bg);
+            font-weight: bold;
+            margin-left: 10px;
+          "
+        >
+          Process & Draw Cards ➔
+        </button>
+        <div id="queue-log" class="log-box" style="margin-top: 20px">
+          Queue is empty.
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const majorArcana = [
+        {
+          name: "The Fool",
+          up: "Embarking on a spontaneous new journey with boundless optimism, trusting the universe and embracing absolute freedom.",
+          rev: "Acting with reckless abandon, ignoring vital warnings, or holding back out of deep-seated fear and anxiety.",
+          edges: [
+            {
+              target: "The Magician",
+              meaning:
+                "The transition from pure potential into tangible action.",
+            },
+            {
+              target: "The World",
+              meaning:
+                "The Alpha and Omega: Start and End of the spiritual journey.",
+            },
+          ],
+        },
+        {
+          name: "The Magician",
+          up: "Harnessing cosmic power to manifest your deepest desires, utilizing all available resources and pure willpower.",
+          rev: "Manipulating others for personal gain, suffering from poor planning, or experiencing a severe creative block.",
+          edges: [
+            {
+              target: "The Fool",
+              meaning:
+                "The transition from pure potential into tangible action.",
+            },
+          ],
+        },
+        {
+          name: "The High Priestess",
+          up: "Tapping into profound intuition and subconscious wisdom, urging you to look beyond the obvious veil of reality.",
+          rev: "Keeping toxic secrets, feeling disconnected from your inner voice, or ignoring your own intuitive guidance.",
+          edges: [
+            {
+              target: "The Hierophant",
+              meaning:
+                "The balance between inner intuitive truth and outer traditional dogma.",
+            },
+          ],
+        },
+        {
+          name: "The Empress",
+          up: "Basking in maternal nurturing and natural abundance, representing the creation of life, art, or new deep connections.",
+          rev: "Suffering from an overbearing dependence, smothering others, or experiencing a creative and emotional drought.",
+          edges: [
+            {
+              target: "The Emperor",
+              meaning:
+                "The divine union of feminine nurturing abundance and masculine rigid structure.",
+            },
+          ],
+        },
+        {
+          name: "The Emperor",
+          up: "Establishing firm authority and logical structure, bringing stability and solid foundations to chaotic situations.",
+          rev: "Exercising tyranny and absolute rigidity, dominating others aggressively, or lacking the discipline to succeed.",
+          edges: [
+            {
+              target: "The Empress",
+              meaning:
+                "The divine union of feminine nurturing abundance and masculine rigid structure.",
+            },
+          ],
+        },
+        {
+          name: "The Hierophant",
+          up: "Following traditional values and conventional wisdom, seeking spiritual guidance from established institutions or mentors.",
+          rev: "Rebelling blindly against society, feeling restricted by dogmatic rules, or following a subversively toxic leader.",
+          edges: [
+            {
+              target: "The High Priestess",
+              meaning:
+                "The balance between inner intuitive truth and outer traditional dogma.",
+            },
+          ],
+        },
+        {
+          name: "The Lovers",
+          up: "Experiencing harmonious partnerships and deep soul connections, aligning your personal values with a meaningful choice.",
+          rev: "Suffering from imbalance and misalignment in a relationship, or making choices based on fear rather than love.",
+          edges: [
+            {
+              target: "The Devil",
+              meaning:
+                "The contrast between free, harmonious choice and toxic, addictive bondage.",
+            },
+          ],
+        },
+        {
+          name: "The Chariot",
+          up: "Overcoming severe conflicts and achieving victory through sheer willpower, intense focus, and strict self-control.",
+          rev: "Experiencing a complete lack of direction, losing control of opposing forces, or encountering aggressive opposition.",
+          edges: [
+            {
+              target: "Strength",
+              meaning:
+                "The difference between soft, compassionate inner control and hard, forceful outer control.",
+            },
+          ],
+        },
+        {
+          name: "Strength",
+          up: "Taming the inner beast with quiet courage, infinite compassion, and gentle persuasion rather than brute force.",
+          rev: "Struggling with intense self-doubt, letting raw emotions control your actions, or feeling profound inner weakness.",
+          edges: [
+            {
+              target: "The Chariot",
+              meaning:
+                "The difference between soft, compassionate inner control and hard, forceful outer control.",
+            },
+          ],
+        },
+        {
+          name: "The Hermit",
+          up: "Retreating from the noisy world for soul-searching and deep introspection, guided by your own internal light.",
+          rev: "Falling into toxic isolation and profound loneliness, or refusing to return to the world after a period of healing.",
+          edges: [
+            {
+              target: "The Star",
+              meaning:
+                "The shift from seeking wisdom inwardly in the dark to radiating hope outwardly to the world.",
+            },
+          ],
+        },
+        {
+          name: "Wheel of Fortune",
+          up: "Experiencing a positive turning point, realizing that karma and cosmic cycles are naturally working in your favor.",
+          rev: "Facing a relentless streak of bad luck, feeling entirely out of control, or resisting the natural ebb and flow of life.",
+          edges: [],
+        },
+        {
+          name: "Justice",
+          up: "Seeking absolute fairness and truth, knowing that objective decisions and karmic balance will ultimately prevail.",
+          rev: "Suffering from severe dishonesty, facing unaccountability, or experiencing a deeply unfair situation and legal trouble.",
+          edges: [
+            {
+              target: "Judgement",
+              meaning:
+                "The evolution from earthly cause-and-effect to profound spiritual rebirth and absolution.",
+            },
+          ],
+        },
+        {
+          name: "The Hanged Man",
+          up: "Willingly surrendering to a temporary pause, gaining a revolutionary new perspective through sacrifice and letting go.",
+          rev: "Experiencing endless delays, resisting necessary changes, or making meaningless sacrifices that yield no real results.",
+          edges: [],
+        },
+        {
+          name: "Death",
+          up: "Undergoing a profound transformation and necessary endings, clearing out the old to make way for a completely new life.",
+          rev: "Living in constant fear of change, experiencing painful stagnation, or refusing to let go of toxic attachments.",
+          edges: [
+            {
+              target: "The Tower",
+              meaning:
+                "The contrast between natural, gradual transformation and sudden, violent upheaval.",
+            },
+          ],
+        },
+        {
+          name: "Temperance",
+          up: "Finding perfect balance and moderation, patiently blending opposing forces to create profound spiritual alchemy.",
+          rev: "Suffering from extreme imbalance and excess, rushing into reckless decisions, or experiencing harsh disharmony.",
+          edges: [],
+        },
+        {
+          name: "The Devil",
+          up: "Facing unhealthy addictions and materialistic restrictions, exploring the shadow self and hidden carnal desires.",
+          rev: "Detaching gracefully from toxic bonds, breaking free from mental prisons, and overcoming a long-term addiction.",
+          edges: [
+            {
+              target: "The Lovers",
+              meaning:
+                "The contrast between free, harmonious choice and toxic, addictive bondage.",
+            },
+          ],
+        },
+        {
+          name: "The Tower",
+          up: "Surviving sudden upheaval and disastrous revelations that violently tear down false foundations to rebuild the truth.",
+          rev: "Narrowly avoiding a massive disaster, delaying the inevitable collapse, or fearing the pain of sudden awakening.",
+          edges: [
+            {
+              target: "Death",
+              meaning:
+                "The contrast between natural, gradual transformation and sudden, violent upheaval.",
+            },
+          ],
+        },
+        {
+          name: "The Star",
+          up: "Finding renewed hope and profound spiritual inspiration, experiencing deep healing and cosmic guidance after a storm.",
+          rev: "Drowning in intense despair and discouragement, losing faith in the universe, or feeling completely disconnected.",
+          edges: [
+            {
+              target: "The Hermit",
+              meaning:
+                "The shift from seeking wisdom inwardly in the dark to radiating hope outwardly to the world.",
+            },
+            {
+              target: "The Moon",
+              meaning:
+                "The journey from subconscious fear and dark illusions into conscious success and radiant clarity.",
+            },
+          ],
+        },
+        {
+          name: "The Moon",
+          up: "Navigating through illusions and deep subconscious fears, relying on intuition to find the way through the dark unknown.",
+          rev: "Releasing deeply repressed emotions, finally seeing the truth behind a deception, or overcoming paralyzing anxiety.",
+          edges: [
+            {
+              target: "The Sun",
+              meaning:
+                "The journey from subconscious fear and dark illusions into conscious success and radiant clarity.",
+            },
+            {
+              target: "The Star",
+              meaning:
+                "The journey from subconscious fear and dark illusions into conscious success and radiant clarity.",
+            },
+          ],
+        },
+        {
+          name: "The Sun",
+          up: "Basking in ultimate positivity and radiant success, experiencing pure joy, profound vitality, and absolute clarity.",
+          rev: "Feeling temporary sadness, being overly optimistic to the point of blindness, or struggling to see the bright side.",
+          edges: [
+            {
+              target: "The Moon",
+              meaning:
+                "The journey from subconscious fear and dark illusions into conscious success and radiant clarity.",
+            },
+          ],
+        },
+        {
+          name: "Judgement",
+          up: "Hearing the higher inner calling and experiencing a spiritual rebirth, ready to rise up and absolve past mistakes.",
+          rev: "Ignoring a vital cosmic wake-up call, drowning in harsh self-doubt, or refusing to learn from past karmic lessons.",
+          edges: [
+            {
+              target: "Justice",
+              meaning:
+                "The evolution from earthly cause-and-effect to profound spiritual rebirth and absolution.",
+            },
+          ],
+        },
+        {
+          name: "The World",
+          up: "Achieving absolute completion and successful integration, feeling a sense of ultimate wholeness and triumphant closure.",
+          rev: "Suffering from a frustrating lack of closure, experiencing delayed success, or feeling an empty void despite reaching the goal.",
+          edges: [
+            {
+              target: "The Fool",
+              meaning:
+                "The Alpha and Omega: Start and End of the spiritual journey.",
+            },
+          ],
+        },
+      ];
+
+      const suits = ["Wands", "Cups", "Swords", "Pentacles"];
+      const ranks = [
+        "Ace",
+        "Two",
+        "Three",
+        "Four",
+        "Five",
+        "Six",
+        "Seven",
+        "Eight",
+        "Nine",
+        "Ten",
+        "Page",
+        "Knight",
+        "Queen",
+        "King",
+      ];
+      const rankUprightDesc = [
+        "A sudden spark of pure potential and new beginnings in the realm of ",
+        "Finding balance, making crucial choices, and forming meaningful partnerships regarding ",
+        "Experiencing initial growth, creative expansion, and the power of teamwork in ",
+        "Establishing deep stability, solid foundations, and a sense of security in ",
+        "Facing sudden conflict, unexpected changes, and necessary challenges involving ",
+        "Achieving beautiful harmony, generous cooperation, and a sense of victorious restoration in ",
+        "Taking time for deep assessment, strategic reflection, and spiritual growth regarding ",
+        "Demonstrating intense mastery, rapid movement, and overcoming massive obstacles in ",
+        "Reaching a state of independent fruition, profound culmination, and near-completion in ",
+        "Celebrating the absolute completion of a cycle and ultimate manifestation of ",
+        "Embracing youthful curiosity, receiving exciting news, and adopting a fresh perspective on ",
+        "Taking bold, romantic, or intellectual action with swift and passionate momentum toward ",
+        "Mastering emotional or practical maturity, nurturing others, and radiating the confident energy of ",
+        "Exercising supreme authority, absolute control, and deeply respected leadership in the domain of ",
+      ];
+      const rankRevDesc = [
+        "Experiencing blocked potential, severe delays, or a squandered opportunity in the realm of ",
+        "Suffering from deep disharmony, painful breakups, or an inability to make a choice regarding ",
+        "Facing creative blocks, failed teamwork, or a painful lack of necessary expansion in ",
+        "Struggling with intense instability, shattered foundations, or a terrifying loss of security in ",
+        "Avoiding necessary conflict, lingering in post-chaos trauma, or resolving long-standing challenges involving ",
+        "Dealing with unfairness, lack of support, deep-seated pride, or failing to achieve harmony in ",
+        "Suffering from strategic exhaustion, paralyzing hesitation, or refusing to learn life lessons regarding ",
+        "Feeling deeply trapped, experiencing agonizing delays, or lacking the focus needed to overcome obstacles in ",
+        "Experiencing painful burnout, stubborn isolation, or a tragic failure right before the finish line in ",
+        "Carrying a crushing burden, facing an anti-climactic ending, or desperately avoiding the inevitable closure of ",
+        "Acting with intense immaturity, receiving devastating news, or lacking the necessary focus regarding ",
+        "Displaying reckless impulsivity, aggressive arrogance, or losing complete momentum toward ",
+        "Becoming emotionally manipulative, overly dependent, or projecting toxic insecurity in the energy of ",
+        "Exercising tyrannical control, strict ruthlessness, or completely losing your rightful authority in the domain of ",
+      ];
+
+      const numerologyLinks = [
+        "None",
+        "The Magician",
+        "The High Priestess",
+        "The Empress",
+        "The Emperor",
+        "The Hierophant",
+        "The Lovers",
+        "The Chariot",
+        "Strength",
+        "The Hermit",
+        "Wheel of Fortune",
+      ];
+      const minorArcana = [];
+
+      suits.forEach((suit) => {
+        ranks.forEach((rank, i) => {
+          let edges = [];
+          if (i < 10) {
+            let majorTarget = numerologyLinks[i + 1];
+            let meaning = `Numerology Link: Carrying the base energy of ${i + 1}`;
+            edges.push({ target: majorTarget, meaning: meaning });
+            let majorNode = majorArcana.find((m) => m.name === majorTarget);
+            if (majorNode)
+              majorNode.edges.push({
+                target: `${rank} of ${suit}`,
+                meaning: meaning,
+              });
+          }
+          minorArcana.push({
+            name: `${rank} of ${suit}`,
+            up: rankUprightDesc[i] + suit + ".",
+            rev: rankRevDesc[i] + suit + ".",
+            edges: edges,
+          });
+        });
+      });
+
+      const fullDeck = [...majorArcana, ...minorArcana];
+      const selectEl = document.getElementById("card-select");
+      fullDeck.forEach((card) => {
+        let opt = document.createElement("option");
+        opt.value = card.name;
+        opt.innerText = card.name;
+        selectEl.appendChild(opt);
+      });
+
+      let stack = [];
+      let queue = [];
+      let reqId = 101;
+      let currentDrawData = [];
+      let flippedCount = 0;
+      let activeQuestion = "";
+
+      function getImgUrl(name) {
+        return `https://placehold.co/200x140/1a1a1a/d4af37?text=${name.replace(/ /g, "+")}`;
+      }
+
+      function switchTab(tabId) {
+        document
+          .querySelectorAll(".container")
+          .forEach((el) => el.classList.remove("active"));
+        document.getElementById(tabId).classList.add("active");
+      }
+
+      function inspectCard(cardName) {
+        document.getElementById("card-select").value = cardName;
+        switchTab("tab-search");
+        searchCard();
+      }
+
+      function startReading(questionOverride = null) {
+        let titleEl = document.getElementById("current-question-title");
+        activeQuestion = questionOverride;
+        if (!activeQuestion) {
+          activeQuestion =
+            titleEl.style.display === "block"
+              ? titleEl.innerText.replace("🔮 Focusing on: ", "")
+              : "General Reading";
+        }
+        titleEl.style.display = "block";
+        titleEl.innerText = "🔮 Focusing on: " + activeQuestion;
+
+        let shuffled = [...fullDeck]
+          .sort(() => 0.5 - Math.random())
+          .slice(0, 3);
+        currentDrawData = shuffled.map((c) => ({
+          ...c,
+          isRev: Math.random() > 0.5,
+        }));
+        flippedCount = 0;
+        let labels = ["Past", "Present", "Future"];
+
+        const display = document.getElementById("reading-display");
+        display.innerHTML = currentDrawData
+          .map(
+            (c, i) => `
+            <div class="card-container" id="card-${i}" onclick="flipCard(${i})">
+                <div class="card-inner">
+                    <div class="card-front">
+                        <div class="click-hint">Click to Reveal</div>
+                    </div>
+                    <div class="card-back">
+                        <div style="font-size:10px; color:#888; margin-bottom:5px;">[ ${labels[i]} ]</div>
+                        <img class="card-img" src="${getImgUrl(c.name)}" alt="${c.name}">
+                        <div class="card-title">${c.name}</div>
+                        <div class="card-orient" style="color:${c.isRev ? "#ff4444" : "var(--gold)"}">${c.isRev ? "▼ Reversed" : "▲ Upright"}</div>
+                        <div class="card-mean">${c.isRev ? c.rev : c.up}</div>
+                        <button class="inspect-btn" onclick="event.stopPropagation(); inspectCard('${c.name}')">🔍 Inspect in DB</button>
+                    </div>
+                </div>
+            </div>
+        `,
+          )
+          .join("");
+      }
+
+      function flipCard(index) {
+        let cardEl = document.getElementById(`card-${index}`);
+        if (cardEl.classList.contains("flipped")) return;
+
+        cardEl.classList.add("flipped");
+        flippedCount++;
+
+        if (flippedCount === 3) {
+          stack.push({
+            time: new Date().toLocaleTimeString(),
+            cards: currentDrawData,
+            question: activeQuestion,
+          });
+          renderStack();
+        }
+      }
+
+      function undoDraw() {
+        if (stack.length === 0) return alert("Stack is empty!");
+        stack.pop();
+        document.getElementById("reading-display").innerHTML =
+          `<div style="color:#555; margin-top:150px;">State Reverted. Click 'Start Reading' to deal again.</div>`;
+        document.getElementById("current-question-title").style.display =
+          "none";
+        flippedCount = 0;
+        renderStack();
+      }
+
+      function renderStack() {
+        let box = document.getElementById("stack-log");
+        if (stack.length === 0) {
+          box.innerHTML = "Stack is currently empty.";
+          return;
+        }
+        box.innerHTML = [...stack]
+          .reverse()
+          .map(
+            (s, idx) => `
+            <div class="log-item">
+                <span style="color:var(--gold);">[Top - ${idx}] ${s.time}</span> 
+                <span style="color:#fff; font-size:12px; margin-left:10px;">🔮 Q: ${s.question}</span><br>
+                ${s.cards.map((c) => `${c.name} (${c.isRev ? "Rev" : "Up"})`).join(" | ")}
+            </div>
+        `,
+          )
+          .join("");
+      }
+
+      function searchCard() {
+        let target = document.getElementById("card-select").value;
+        let card = fullDeck.find((c) => c.name === target);
+        document.getElementById("search-result").style.display = "block";
+        document.getElementById("res-name").innerText = card.name;
+        document.getElementById("res-img").src = getImgUrl(card.name);
+        document.getElementById("res-up").innerText = card.up;
+        document.getElementById("res-rev").innerText = card.rev;
+
+        let edgesText =
+          card.edges.length > 0
+            ? card.edges
+                .map(
+                  (e) => `
+            <div style="background:rgba(212,175,55,0.1); border-left:2px solid var(--gold); padding:5px 10px; margin-bottom:5px; border-radius:2px;">
+                <span style="color:white; font-weight:bold;">${e.target}</span><br>
+                <span style="color:#aaa; font-size:11px;">${e.meaning}</span>
+            </div>
+        `,
+                )
+                .join("")
+            : "<span style='color:#888;'>No connected nodes found.</span>";
+        document.getElementById("res-graph").innerHTML = edgesText;
+      }
+
+      function enqueueReq() {
+        let inputEl = document.getElementById("req-type");
+        let type = inputEl.value.trim();
+        if (!type) return alert("Please enter a question!");
+        queue.push({ id: reqId++, type: type });
+        inputEl.value = "";
+        renderQueue();
+      }
+
+      function processAndDraw() {
+        if (queue.length === 0)
+          return alert("Queue is empty! Please add a question first.");
+        let activeReq = queue.shift();
+        renderQueue();
+        switchTab("tab-reading");
+        startReading(activeReq.type);
+      }
+
+      function renderQueue() {
+        let box = document.getElementById("queue-log");
+        if (queue.length === 0) {
+          box.innerHTML = "Queue is empty.";
+          return;
+        }
+        box.innerHTML = queue
+          .map(
+            (q, idx) => `
+            <div class="log-item" style="${idx === 0 ? "color:#fff;" : ""}">
+                <span style="color:var(--gold);">[Pos ${idx + 1}]</span> Request #${q.id} - ${q.type} ${idx === 0 ? "← (Next to process)" : ""}
+            </div>
+        `,
+          )
+          .join("");
+      }
+    </script>
+  </body>
+</html>
