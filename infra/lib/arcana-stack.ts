@@ -7,6 +7,7 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import { Construct } from 'constructs';
 
 export class ArcanaStack extends cdk.Stack {
@@ -18,6 +19,10 @@ export class ArcanaStack extends cdk.Stack {
       encryption: s3.BucketEncryption.S3_MANAGED,
       enforceSSL: true,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
+    const openAiApiKey = new secretsmanager.Secret(this, 'OpenAiApiKey', {
+      description: 'OpenAI API key used by the Arcana reading Lambda',
     });
 
     const readingLogGroup = new logs.LogGroup(this, 'ReadingLogGroup', {
@@ -34,8 +39,11 @@ export class ArcanaStack extends cdk.Stack {
       logGroup: readingLogGroup,
       environment: {
         APP_ENV: 'production',
+        OPENAI_API_KEY_SECRET_ARN: openAiApiKey.secretArn,
+        OPENAI_MODEL: 'gpt-5-mini',
       },
     });
+    openAiApiKey.grantRead(readingFunction);
 
     const api = new apigateway.RestApi(this, 'ReadingApi', {
       restApiName: 'Arcana Reading API',
@@ -86,5 +94,6 @@ export class ArcanaStack extends cdk.Stack {
       value: `https://${distribution.distributionDomainName}`,
     });
     new cdk.CfnOutput(this, 'ApiUrl', { value: api.url });
+    new cdk.CfnOutput(this, 'OpenAiSecretArn', { value: openAiApiKey.secretArn });
   }
 }

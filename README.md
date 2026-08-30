@@ -29,9 +29,28 @@ npm run synth
 
 No AWS resources are created until `npm run deploy` is run with configured AWS credentials.
 
+## Configure AI readings
+
+The stack creates an empty AWS Secrets Manager secret and prints its ARN as
+`OpenAiSecretArn`. After deployment, store the API key in that secret—never in
+the frontend or in Git:
+
+```bash
+aws secretsmanager put-secret-value \
+  --secret-id <OpenAiSecretArn> \
+  --secret-string '{"OPENAI_API_KEY":"<your-key>"}'
+```
+
+The Lambda uses the OpenAI Responses API and returns a structured reading with
+an interpretation, grounded guidance, three follow-up paths, and an explicit
+signal when current real-world research would improve the answer.
+
 ## Current status
 
-Step one provides the deployable frontend, optimized deck assets, API contract, and AWS infrastructure skeleton. The Lambda intentionally returns a placeholder response until the LLM provider and secret are configured in step two.
+The frontend, optimized deck assets, AWS infrastructure, model-backed reading
+endpoint, offline fallback, and follow-up interaction are implemented. No AWS
+resources or model calls occur until the stack is deployed and its generated
+secret is populated.
 
 The dependency tree is locked in `package-lock.json`. `npm run build` and
 `npm run synth` must both pass before infrastructure changes are merged.
