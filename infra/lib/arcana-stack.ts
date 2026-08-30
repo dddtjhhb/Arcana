@@ -20,13 +20,18 @@ export class ArcanaStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
+    const readingLogGroup = new logs.LogGroup(this, 'ReadingLogGroup', {
+      retention: logs.RetentionDays.ONE_WEEK,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
     const readingFunction = new lambda.Function(this, 'ReadingFunction', {
       runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'reading.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../lambda')),
       memorySize: 512,
       timeout: cdk.Duration.seconds(30),
-      logRetention: logs.RetentionDays.ONE_WEEK,
+      logGroup: readingLogGroup,
       environment: {
         APP_ENV: 'production',
       },

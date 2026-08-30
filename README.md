@@ -32,3 +32,6 @@ No AWS resources are created until `npm run deploy` is run with configured AWS c
 ## Current status
 
 Step one provides the deployable frontend, optimized deck assets, API contract, and AWS infrastructure skeleton. The Lambda intentionally returns a placeholder response until the LLM provider and secret are configured in step two.
+
+The dependency tree is locked in `package-lock.json`. `npm run build` and
+`npm run synth` must both pass before infrastructure changes are merged.
