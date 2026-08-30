@@ -36,6 +36,7 @@ export class ArcanaStack extends cdk.Stack {
       code: lambda.Code.fromAsset(path.join(__dirname, '../lambda')),
       memorySize: 512,
       timeout: cdk.Duration.seconds(30),
+      reservedConcurrentExecutions: 5,
       logGroup: readingLogGroup,
       environment: {
         APP_ENV: 'production',
@@ -47,7 +48,12 @@ export class ArcanaStack extends cdk.Stack {
 
     const api = new apigateway.RestApi(this, 'ReadingApi', {
       restApiName: 'Arcana Reading API',
-      deployOptions: { stageName: 'v1' },
+      deployOptions: {
+        stageName: 'v1',
+        throttlingBurstLimit: 5,
+        throttlingRateLimit: 2,
+        metricsEnabled: true,
+      },
       defaultCorsPreflightOptions: {
         allowOrigins: apigateway.Cors.ALL_ORIGINS,
         allowMethods: ['POST', 'OPTIONS'],
@@ -56,9 +62,50 @@ export class ArcanaStack extends cdk.Stack {
     });
 
     const apiRoot = api.root.addResource('api');
+    const readingRequest = api.addModel('ReadingRequest', {
+      contentType: 'application/json',
+      modelName: 'ArcanaReadingRequest',
+      schema: {
+        schema: apigateway.JsonSchemaVersion.DRAFT4,
+        title: 'Arcana reading request',
+        type: apigateway.JsonSchemaType.OBJECT,
+        required: ['question', 'mode', 'cards'],
+        additionalProperties: false,
+        properties: {
+          question: { type: apigateway.JsonSchemaType.STRING, minLength: 1, maxLength: 1000 },
+          mode: { type: apigateway.JsonSchemaType.STRING, enum: ['open', 'relationship', 'match'] },
+          followUp: { type: apigateway.JsonSchemaType.STRING, maxLength: 500 },
+          history: { type: apigateway.JsonSchemaType.ARRAY, maxItems: 8 },
+          cards: {
+            type: apigateway.JsonSchemaType.ARRAY,
+            minItems: 3,
+            maxItems: 3,
+            items: {
+              type: apigateway.JsonSchemaType.OBJECT,
+              required: ['name', 'reversed', 'position'],
+              properties: {
+                name: { type: apigateway.JsonSchemaType.STRING, maxLength: 80 },
+                reversed: { type: apigateway.JsonSchemaType.BOOLEAN },
+                position: { type: apigateway.JsonSchemaType.STRING, maxLength: 40 },
+                file: { type: apigateway.JsonSchemaType.STRING, maxLength: 100 },
+                arcana: { type: apigateway.JsonSchemaType.STRING, maxLength: 40 },
+              },
+            },
+          },
+        },
+      },
+    });
     apiRoot.addResource('reading').addMethod(
       'POST',
       new apigateway.LambdaIntegration(readingFunction),
+      {
+        requestModels: { 'application/json': readingRequest },
+        requestValidatorOptions: {
+          requestValidatorName: 'reading-body-validator',
+          validateRequestBody: true,
+          validateRequestParameters: false,
+        },
+      },
     );
 
     const distribution = new cloudfront.Distribution(this, 'Distribution', {

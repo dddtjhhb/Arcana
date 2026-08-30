@@ -10,6 +10,8 @@ An English-language, three-card Rider–Waite–Smith tarot experience with upri
 - S3 — private static asset origin
 - CloudFront — HTTPS CDN and the public application URL
 - API Gateway + Lambda — server-side reading endpoint
+- API Gateway throttles requests and validates payloads before Lambda execution
+- Lambda reserved concurrency limits the maximum simultaneous model calls
 
 ## Local frontend
 
@@ -54,3 +56,5 @@ secret is populated.
 
 The dependency tree is locked in `package-lock.json`. `npm run build` and
 `npm run synth` must both pass before infrastructure changes are merged.
+GitHub Actions runs these checks automatically; deployment remains a manual
+confirmation step.
