@@ -43,9 +43,11 @@ aws secretsmanager put-secret-value \
   --secret-string '{"OPENAI_API_KEY":"<your-key>"}'
 ```
 
-The Lambda uses the OpenAI Responses API and returns a structured reading with
-an interpretation, grounded guidance, three follow-up paths, and an explicit
-signal when current real-world research would improve the answer.
+The Lambda uses the OpenAI Responses API as an agent. In a single bounded run it
+can ask one clarifying question, decide whether current public information is
+needed, invoke web search, and return a structured reading with evidence kept
+separate from tarot interpretation. Relationship questions do not trigger
+research into private individuals.
 
 ## Current status
 

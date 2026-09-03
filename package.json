@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "build": "tsc --noEmit",
+    "test": "node --test test/*.test.js",
     "cdk": "cdk",
     "synth": "cdk synth",
     "diff": "cdk diff",
