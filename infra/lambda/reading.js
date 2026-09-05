@@ -28,13 +28,16 @@ exports.handler = async (event) => {
     }
 
     return response(200, { type: 'reading', reading: {
+      verdict: decision.verdict,
+      symbolicLikelihood: decision.symbolicLikelihood,
       headline: decision.headline,
       evidenceSummary: decision.evidenceSummary,
       interpretation: decision.interpretation,
-      groundedGuidance: decision.groundedGuidance,
+      timing: decision.timing,
+      hiddenFactor: decision.hiddenFactor,
       uncertainty: decision.uncertainty,
       followUps: decision.followUps,
-    }, agent: { intent: decision.intent, researched, sources } });
+    }, agent: { mode: decision.agentMode, intent: decision.intent, researched, sources } });
   } catch (error) {
     console.error('Agent run failed', error);
     return response(500, { error: 'The reading could not be generated' });
@@ -59,20 +62,25 @@ async function runAgent(apiKey, payload) {
     signal: AbortSignal.timeout(25000),
     body: JSON.stringify({
       model: process.env.OPENAI_MODEL || 'gpt-5-mini',
-      max_output_tokens: 1100,
+      // Reasoning tokens count toward this limit. 1100 could leave the
+      // structured JSON cut off before its closing brace.
+      max_output_tokens: 2400,
+      reasoning: { effort: 'low' },
       tools: [{ type: 'web_search' }],
       tool_choice: 'auto',
       include: ['web_search_call.action.sources'],
       instructions: [
-        'You are Arcana, an interactive tarot agent for reflection and possibility—not certainty.',
-        'First decide whether one concise clarification is genuinely necessary. If so, return type clarification and ask only one useful question.',
-        'Otherwise interpret the exact cards, positions, orientations, combinations, and user context.',
-        'Use web search only when current, public, verifiable facts materially affect the question, such as sports fixtures, form, injuries, companies, schools, laws, weather, or schedules.',
+        'You are Arcana, an incisive, atmospheric tarot reader. Give the user the felt experience of a real reading, not a generic coaching report.',
+        'For personal, relationship, academic, career, and decision questions, default to oracle mode: lead with a direct directional verdict, then interpret the exact cards, positions, reversals, and combinations as a symbolic forecast.',
+        'The symbolicLikelihood is narrative tarot symbolism, not a statistical probability. Use it to express how strongly the spread leans yes or no. Do not imply measured odds.',
+        'Keep the interpretation vivid and specific. State the likely trajectory, timing window, and hidden factor. Do not produce checklists or long practical action plans unless the user explicitly asks what to do.',
+        'Use research mode and web search only when current public facts materially affect the request, especially sports fixtures, recent form, injuries, laws, weather, schedules, or when the user explicitly asks you to verify current facts.',
+        'A personal prediction about admission, career, or love does not by itself require web search. Never mix astrology into a tarot reading unless the user supplies birth data and explicitly requests astrology.',
+        'Ask one concise clarification only when a missing detail would materially change the reading; otherwise read the spread immediately.',
         'Never search for private individuals, personal profiles, contact details, or supposed private thoughts. Relationship questions alone never justify web search.',
-        'When research is used, distinguish factual evidence from symbolic tarot interpretation and acknowledge uncertainty.',
+        'When research is used, clearly separate verified real-world evidence from symbolic tarot interpretation.',
         'Never claim guaranteed knowledge of the future, private thoughts, or supernatural certainty.',
-        'For health, legal, financial, or safety-sensitive topics, keep the reading reflective and recommend appropriate professional help when relevant.',
-        'Return only JSON matching the schema.',
+        'For health, legal, financial, or safety-sensitive topics, keep the reading reflective and avoid definitive professional claims.',
       ].join(' '),
       input: sessionContext(payload),
       text: { format: { type: 'json_schema', name: 'arcana_agent_result', strict: true, schema: agentSchema() } },
@@ -90,17 +98,21 @@ function agentSchema() {
     type: 'object', additionalProperties: false,
     properties: {
       type: { type: 'string', enum: ['clarification', 'reading'] },
+      agentMode: { type: 'string', enum: ['oracle', 'research'] },
       intent: { type: 'string', enum: ['general', 'relationship', 'career', 'decision', 'sports', 'finance', 'wellbeing', 'other'] },
       reason: { type: ['string', 'null'] },
       clarificationQuestion: { type: ['string', 'null'] },
+      verdict: { type: ['string', 'null'], enum: ['strong_yes', 'lean_yes', 'uncertain', 'lean_no', 'strong_no', null] },
+      symbolicLikelihood: { type: ['integer', 'null'], minimum: 0, maximum: 100 },
       headline: { type: ['string', 'null'] },
       evidenceSummary: { type: ['string', 'null'] },
       interpretation: { type: ['string', 'null'] },
-      groundedGuidance: { type: ['string', 'null'] },
+      timing: { type: ['string', 'null'] },
+      hiddenFactor: { type: ['string', 'null'] },
       uncertainty: { type: ['string', 'null'] },
       followUps: { type: 'array', minItems: 0, maxItems: 3, items: { type: 'string' } },
     },
-    required: ['type', 'intent', 'reason', 'clarificationQuestion', 'headline', 'evidenceSummary', 'interpretation', 'groundedGuidance', 'uncertainty', 'followUps'],
+    required: ['type', 'agentMode', 'intent', 'reason', 'clarificationQuestion', 'verdict', 'symbolicLikelihood', 'headline', 'evidenceSummary', 'interpretation', 'timing', 'hiddenFactor', 'uncertainty', 'followUps'],
   };
 }
 
@@ -112,8 +124,16 @@ function sessionContext({ question, mode = 'open', cards, followUp, history = []
 
 function parseOutputJson(result) {
   const text = result.output_text || extractOutputText(result.output);
+  if (result.status === 'incomplete') {
+    const reason = result.incomplete_details?.reason || 'unknown reason';
+    throw new Error(`Model response was incomplete: ${reason}`);
+  }
   if (!text) throw new Error('Model response did not contain output text');
-  return JSON.parse(text);
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new Error(`Model returned invalid structured JSON (${text.length} characters)`, { cause: error });
+  }
 }
 
 function extractOutputText(output = []) {

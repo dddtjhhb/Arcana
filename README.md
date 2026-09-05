@@ -11,7 +11,7 @@ An English-language, three-card Rider–Waite–Smith tarot experience with upri
 - CloudFront — HTTPS CDN and the public application URL
 - API Gateway + Lambda — server-side reading endpoint
 - API Gateway throttles requests and validates payloads before Lambda execution
-- Lambda reserved concurrency limits the maximum simultaneous model calls
+- API Gateway throttling limits how quickly model calls can be started
 
 ## Local frontend
 

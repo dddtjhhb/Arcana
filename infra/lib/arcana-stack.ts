@@ -36,7 +36,6 @@ export class ArcanaStack extends cdk.Stack {
       code: lambda.Code.fromAsset(path.join(__dirname, '../lambda')),
       memorySize: 512,
       timeout: cdk.Duration.seconds(30),
-      reservedConcurrentExecutions: 5,
       logGroup: readingLogGroup,
       environment: {
         APP_ENV: 'production',
