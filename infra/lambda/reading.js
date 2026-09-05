@@ -14,7 +14,9 @@ exports.handler = async (event) => {
   if (error) return response(400, { error });
 
   try {
-    const result = await runAgent(await getApiKey(), payload);
+    const apiKey = await getApiKey();
+    const route = await routeQuestion(apiKey, payload.question);
+    const result = await runAgent(apiKey, payload, route);
     const decision = parseOutputJson(result);
     const sources = extractSources(result.output);
     const researched = result.output?.some((item) => item.type === 'web_search_call') || sources.length > 0;
@@ -37,7 +39,7 @@ exports.handler = async (event) => {
       hiddenFactor: decision.hiddenFactor,
       uncertainty: decision.uncertainty,
       followUps: decision.followUps,
-    }, agent: { mode: decision.agentMode, intent: decision.intent, researched, sources } });
+    }, agent: { mode: route.agentMode, intent: route.intent, researched, sources } });
   } catch (error) {
     console.error('Agent run failed', error);
     return response(500, { error: 'The reading could not be generated' });
@@ -55,36 +57,72 @@ function validate({ question, mode = 'open', cards, followUp, history = [] }) {
   return null;
 }
 
-async function runAgent(apiKey, payload) {
+async function routeQuestion(apiKey, question) {
   const apiResponse = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    signal: AbortSignal.timeout(25000),
+    signal: AbortSignal.timeout(5000),
     body: JSON.stringify({
-      model: process.env.OPENAI_MODEL || 'gpt-5-mini',
-      // Reasoning tokens count toward this limit. 1100 could leave the
-      // structured JSON cut off before its closing brace.
-      max_output_tokens: 2400,
-      reasoning: { effort: 'low' },
-      tools: [{ type: 'web_search' }],
-      tool_choice: 'auto',
-      include: ['web_search_call.action.sources'],
+      model: process.env.OPENAI_ROUTER_MODEL || 'gpt-5-nano',
+      max_output_tokens: 300,
+      reasoning: { effort: 'minimal' },
       instructions: [
-        'You are Arcana, an incisive, atmospheric tarot reader. Give the user the felt experience of a real reading, not a generic coaching report.',
-        'For personal, relationship, academic, career, and decision questions, default to oracle mode: lead with a direct directional verdict, then interpret the exact cards, positions, reversals, and combinations as a symbolic forecast.',
-        'The symbolicLikelihood is narrative tarot symbolism, not a statistical probability. Use it to express how strongly the spread leans yes or no. Do not imply measured odds.',
-        'Keep the interpretation vivid and specific. State the likely trajectory, timing window, and hidden factor. Do not produce checklists or long practical action plans unless the user explicitly asks what to do.',
-        'Use research mode and web search only when current public facts materially affect the request, especially sports fixtures, recent form, injuries, laws, weather, schedules, or when the user explicitly asks you to verify current facts.',
-        'A personal prediction about admission, career, or love does not by itself require web search. Never mix astrology into a tarot reading unless the user supplies birth data and explicitly requests astrology.',
-        'Ask one concise clarification only when a missing detail would materially change the reading; otherwise read the spread immediately.',
-        'Never search for private individuals, personal profiles, contact details, or supposed private thoughts. Relationship questions alone never justify web search.',
-        'When research is used, clearly separate verified real-world evidence from symbolic tarot interpretation.',
-        'Never claim guaranteed knowledge of the future, private thoughts, or supernatural certainty.',
-        'For health, legal, financial, or safety-sensitive topics, keep the reading reflective and avoid definitive professional claims.',
+        'Classify the request for a tarot application.',
+        'Choose oracle for personal, relationship, academic, career, wellbeing, and decision predictions that can be answered from the cards.',
+        'Choose research only when up-to-date public facts materially affect the answer or the user explicitly asks for current verification or web research.',
+        'Sports match predictions, recent form, injuries, schedules, laws, weather, prices, and current company facts require research.',
+        'Questions such as whether the user will be admitted, contacted, promoted, or reconciled remain oracle unless current factual research is explicitly requested.',
       ].join(' '),
-      input: sessionContext(payload),
-      text: { format: { type: 'json_schema', name: 'arcana_agent_result', strict: true, schema: agentSchema() } },
+      input: question.trim(),
+      text: { format: { type: 'json_schema', name: 'arcana_route', strict: true, schema: {
+        type: 'object', additionalProperties: false,
+        properties: {
+          agentMode: { type: 'string', enum: ['oracle', 'research'] },
+          intent: { type: 'string', enum: ['general', 'relationship', 'career', 'decision', 'sports', 'finance', 'wellbeing', 'other'] },
+        },
+        required: ['agentMode', 'intent'],
+      } } },
     }),
+  });
+  if (!apiResponse.ok) {
+    console.error('OpenAI routing failed', apiResponse.status, await apiResponse.text());
+    throw new Error(`OpenAI routing failed with ${apiResponse.status}`);
+  }
+  return parseOutputJson(await apiResponse.json());
+}
+
+async function runAgent(apiKey, payload, route) {
+  const researchEnabled = route.agentMode === 'research';
+  const requestBody = {
+    model: process.env.OPENAI_MODEL || 'gpt-5-mini',
+    max_output_tokens: 2400,
+    reasoning: { effort: 'low' },
+    instructions: [
+      'You are Arcana, an incisive, atmospheric tarot reader. Give the user the felt experience of a real reading, not a generic coaching report.',
+      `The routing decision is ${route.agentMode} mode with ${route.intent} intent. Follow that route.`,
+      'For oracle mode, lead with a direct directional verdict, then interpret the exact cards, positions, reversals, and combinations as a symbolic forecast.',
+      'The symbolicLikelihood is narrative tarot symbolism, not a statistical probability. Use it to express how strongly the spread leans yes or no. Do not imply measured odds.',
+      'Keep the interpretation vivid and specific. State the likely trajectory, timing window, and hidden factor. Do not produce checklists or long practical action plans unless the user explicitly asks what to do.',
+      'In research mode, use web search for the current public facts that materially affect the request, then clearly separate verified evidence from tarot interpretation.',
+      'Never mix astrology into a tarot reading unless the user supplies birth data and explicitly requests astrology.',
+      'Ask one concise clarification only when a missing detail would materially change the reading; otherwise read the spread immediately.',
+      'Never search for private individuals, personal profiles, contact details, or supposed private thoughts. Relationship questions alone never justify web search.',
+      'Never claim guaranteed knowledge of the future, private thoughts, or supernatural certainty.',
+      'For health, legal, financial, or safety-sensitive topics, keep the reading reflective and avoid definitive professional claims.',
+    ].join(' '),
+    input: sessionContext(payload),
+    text: { format: { type: 'json_schema', name: 'arcana_agent_result', strict: true, schema: agentSchema() } },
+  };
+  if (researchEnabled) {
+    requestBody.tools = [{ type: 'web_search' }];
+    requestBody.tool_choice = 'auto';
+    requestBody.include = ['web_search_call.action.sources'];
+  }
+  const apiResponse = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(22000),
+    body: JSON.stringify(requestBody),
   });
   if (!apiResponse.ok) {
     console.error('OpenAI request failed', apiResponse.status, await apiResponse.text());

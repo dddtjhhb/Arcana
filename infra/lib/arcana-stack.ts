@@ -41,6 +41,7 @@ export class ArcanaStack extends cdk.Stack {
         APP_ENV: 'production',
         OPENAI_API_KEY_SECRET_ARN: openAiApiKey.secretArn,
         OPENAI_MODEL: 'gpt-5-mini',
+        OPENAI_ROUTER_MODEL: 'gpt-5-nano',
       },
     });
     openAiApiKey.grantRead(readingFunction);
