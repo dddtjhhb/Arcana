@@ -26,6 +26,7 @@ function loadHandler(modelResults) {
     process: { env: { OPENAI_API_KEY_SECRET_ARN: 'test-secret' } }, AbortSignal,
     require(name) {
       if (name === '@aws-sdk/client-secrets-manager') return { SecretsManagerClient, GetSecretValueCommand };
+      if (name === './tarot-skill') return require('../infra/lambda/tarot-skill');
       return require(name);
     },
     fetch: async (_url, options) => {
@@ -41,35 +42,30 @@ function outputJson(value, extra = []) {
   return { output: [...extra, { type: 'message', content: [{ type: 'output_text', text: JSON.stringify(value), annotations: [] }] }] };
 }
 
-function routeJson(agentMode, intent) {
-  return outputJson({ agentMode, intent });
-}
-
 test('returns one agent clarification', async () => {
-  const { handler, requests } = loadHandler([routeJson('oracle', 'relationship'), outputJson({
-    type: 'clarification', agentMode: 'oracle', intent: 'relationship', reason: 'The timeframe changes the framing.',
+  const { handler, requests } = loadHandler(outputJson({
+    type: 'clarification', reason: 'The timeframe changes the framing.',
     clarificationQuestion: 'What timeframe would you like to explore?', headline: null,
-    verdict: null, symbolicLikelihood: null, evidenceSummary: null, interpretation: null, timing: null, hiddenFactor: null, uncertainty: null, followUps: [],
-  })]);
+    verdict: null, symbolicLikelihood: null, evidenceSummary: null, cardReadings: [], interpretation: null, timing: null, hiddenFactor: null, uncertainty: null, followUps: [],
+  }));
   const result = await handler({ httpMethod: 'POST', body: JSON.stringify(payload) });
   const body = JSON.parse(result.body);
   assert.equal(result.statusCode, 200);
   assert.equal(body.type, 'clarification');
-  assert.equal(body.clarification.intent, 'relationship');
-  assert.equal(requests.length, 2);
-  assert.equal(requests[0].model, 'gpt-5-nano');
-  assert.equal(requests[0].reasoning.effort, 'minimal');
-  assert.equal(requests[1].tools, undefined);
-  assert.equal(requests[1].reasoning.effort, 'low');
-  assert.equal(requests[1].max_output_tokens, 2400);
+  assert.equal(body.clarification.intent, 'decision');
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].model, 'gpt-5-mini');
+  assert.equal(requests[0].tools, undefined);
+  assert.equal(requests[0].reasoning.effort, 'low');
+  assert.equal(requests[0].max_output_tokens, 2400);
 });
 
 test('handles an incomplete model response without parsing truncated JSON', async () => {
-  const { handler } = loadHandler([routeJson('oracle', 'general'), {
+  const { handler } = loadHandler({
     status: 'incomplete',
     incomplete_details: { reason: 'max_output_tokens' },
     output: [{ type: 'message', content: [{ type: 'output_text', text: '{"type":"reading"' }] }],
-  }]);
+  });
   const result = await handler({ httpMethod: 'POST', body: JSON.stringify(payload) });
   assert.equal(result.statusCode, 500);
   assert.equal(JSON.parse(result.body).error, 'The reading could not be generated');
@@ -77,23 +73,37 @@ test('handles an incomplete model response without parsing truncated JSON', asyn
 
 test('returns a researched reading and its sources', async () => {
   const source = { type: 'web_search_call', action: { sources: [{ title: 'Official source', url: 'https://example.com/facts' }] } };
-  const { handler, requests } = loadHandler([routeJson('research', 'sports'), outputJson({
-    type: 'reading', agentMode: 'research', intent: 'sports', reason: null, clarificationQuestion: null,
+  const { handler, requests } = loadHandler(outputJson({
+    type: 'reading', reason: null, clarificationQuestion: null,
     verdict: 'lean_yes', symbolicLikelihood: 64,
     headline: 'Momentum meets uncertainty', evidenceSummary: 'Current form is mixed.',
+    cardReadings: [
+      { position: 'PAST', cardName: 'The Moon', orientation: 'upright', interpretation: 'Uncertainty shaped the earlier situation.' },
+      { position: 'PRESENT', cardName: 'Two of Cups', orientation: 'reversed', interpretation: 'Coordination is strained in the present.' },
+      { position: 'POSSIBILITY', cardName: 'The Star', orientation: 'upright', interpretation: 'A hopeful route remains open.' },
+    ],
     interpretation: 'The spread points to pressure rather than certainty.',
     timing: 'Near the next fixture.', hiddenFactor: 'A late lineup change.',
     uncertainty: 'Lineups can change.', followUps: ['Explore momentum', 'Draw a clarifier', 'Review the evidence'],
-  }, [source])]);
-  const result = await handler({ httpMethod: 'POST', body: JSON.stringify(payload) });
+  }, [source]));
+  const result = await handler({ httpMethod: 'POST', body: JSON.stringify({ ...payload, question: 'Who will win tonight\'s match? Search recent form and injuries.' }) });
   const body = JSON.parse(result.body);
   assert.equal(body.type, 'reading');
   assert.equal(body.agent.researched, true);
   assert.equal(body.agent.mode, 'research');
-  assert.equal(requests.length, 2);
-  assert.equal(requests[1].tools[0].type, 'web_search');
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].tools[0].type, 'web_search');
   assert.equal(body.reading.verdict, 'lean_yes');
   assert.equal(body.reading.symbolicLikelihood, 64);
+  assert.equal(body.reading.cardReadings.length, 3);
+  assert.equal(body.reading.cardReadings[0].cardName, 'The Moon');
   assert.equal(body.agent.sources[0].url, 'https://example.com/facts');
   assert.equal(body.reading.followUps.length, 3);
+});
+
+test('routes common questions locally without a model classifier', () => {
+  const { routeQuestion } = require('../infra/lambda/tarot-skill');
+  assert.deepEqual(routeQuestion('Will my former partner contact me again?'), { agentMode: 'oracle', intent: 'relationship' });
+  assert.deepEqual(routeQuestion('预测今晚比赛，搜索球员近期伤病和交手记录'), { agentMode: 'research', intent: 'sports' });
+  assert.deepEqual(routeQuestion('Should I change my university major?'), { agentMode: 'oracle', intent: 'career' });
 });
