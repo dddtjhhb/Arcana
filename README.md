@@ -1,17 +1,24 @@
 # Arcana
 
-An English-language, three-card Rider–Waite–Smith tarot experience with upright and reversed cards. The frontend uses a Midnights-inspired visual system and is being prepared for a serverless AWS deployment.
+**[Live Application](https://d3its9ne9e8ot4.cloudfront.net/)**
+
+Arcana is a deployed agentic AI tarot application featuring the complete
+78-card Rider–Waite–Smith deck, upright and reversed readings, structured
+three-card interpretation, optional public web research, and a private
+browser-local reading journal.
+
+The application runs on a serverless AWS architecture and uses a
+Midnights-inspired visual system.
 
 ## Architecture
 
-- `site/` — deployable static frontend and 78 optimized WebP card images
-- `infra/lib/` — AWS CDK stack
-- `infra/lambda/` — reading API Lambda
-- S3 — private static asset origin
-- CloudFront — HTTPS CDN and the public application URL
-- API Gateway + Lambda — server-side reading endpoint
-- API Gateway throttles requests and validates payloads before Lambda execution
-- API Gateway throttling limits how quickly model calls can be started
+- `site/` — HTML, CSS, and JavaScript frontend with 78 optimized WebP cards
+- `infra/lib/` — TypeScript AWS CDK infrastructure
+- `infra/lambda/` — Node.js reading API and deterministic routing logic
+- S3 + CloudFront — private static origin, HTTPS delivery, and CDN caching
+- API Gateway + Lambda — validated and rate-limited reading API
+- Secrets Manager — server-side OpenAI API key storage
+- OpenAI Responses API — structured readings and optional public web search
 
 ## Local frontend
 
@@ -43,20 +50,24 @@ aws secretsmanager put-secret-value \
   --secret-string '{"OPENAI_API_KEY":"<your-key>"}'
 ```
 
-The Lambda uses the OpenAI Responses API as an agent. In a single bounded run it
-can ask one clarifying question, decide whether current public information is
-needed, invoke web search, and return a structured reading with evidence kept
-separate from tarot interpretation. Relationship questions do not trigger
-research into private individuals.
+Questions are first routed locally using deterministic rules. Ordinary tarot
+questions proceed directly to a model-generated structured reading. Web search
+is enabled only when current public facts materially affect the answer, such as
+recent sports form, injuries, schedules, or other time-sensitive information.
+
+The agent keeps researched evidence separate from symbolic tarot interpretation
+and does not search for private individuals or claim access to private thoughts.
 
 ## Current status
 
-The frontend, optimized deck assets, AWS infrastructure, model-backed reading
-endpoint, offline fallback, and follow-up interaction are implemented. No AWS
-resources or model calls occur until the stack is deployed and its generated
-secret is populated.
+Arcana is deployed on AWS and available through CloudFront:
 
-The dependency tree is locked in `package-lock.json`. `npm run build` and
-`npm run synth` must both pass before infrastructure changes are merged.
-GitHub Actions runs these checks automatically; deployment remains a manual
-confirmation step.
+**https://d3its9ne9e8ot4.cloudfront.net/**
+
+The production version includes the complete card deck, upright and reversed
+draws, structured AI readings, optional web research, follow-up interaction,
+an offline fallback, and browser-local reading history.
+
+The dependency tree is locked in `package-lock.json`. GitHub Actions validates
+the TypeScript build and CDK synthesis. Production deployment remains a
+manually approved step.
